@@ -57,7 +57,13 @@ def to_value(angle, radius):
     else:
         return value + radius
     
+# Global brightness scalar (0..1) applied to every color passed to set_led.
+# Set by the render loop from the active pattern's "brightness" param.
+brightness = 1.0
+
 def set_led(angle, radius, color):
+    if brightness < 1.0:
+        color = (int(color[0] * brightness), int(color[1] * brightness), int(color[2] * brightness))
     if angle < 0:
         angle = 60 + angle
     angle = angle % 60
@@ -267,7 +273,7 @@ def flower(idx, color, i_color):
     return (idx + 2) % 60
 
 
-def ripple(phase, spread=0.5, brightness=0.5):
+def ripple(phase, spread=0.5, brightness=1.0, speed=0.01):
     """Rainbow flowing outward ring by ring.
 
     Each visual ring is one solid hue; hue advances with phase so colors
@@ -279,10 +285,10 @@ def ripple(phase, spread=0.5, brightness=0.5):
         for i in range(CELLS_PER_RING):
             set_cell(ring, i, color)
     write()
-    return (phase + 0.01) % 1.0
+    return (phase + speed) % 1.0
 
 
-def pinwheel(pos, hue, arms=3, twist=1, fade=40, brightness=0.5):
+def pinwheel(pos, hue, arms=3, twist=1, fade=40, brightness=1.0, speed=0.002):
     """Spinning spiral arms.
 
     Each arm is one cell per ring, shifted `twist` cells further around on
@@ -297,4 +303,4 @@ def pinwheel(pos, hue, arms=3, twist=1, fade=40, brightness=0.5):
         for ring in range(NUM_RINGS):
             set_cell(ring, (base + ring * twist) % CELLS_PER_RING, color)
     write()
-    return (pos + 1) % CELLS_PER_RING, (hue + 0.002) % 1.0
+    return (pos + 1) % CELLS_PER_RING, (hue + speed) % 1.0

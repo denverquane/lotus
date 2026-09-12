@@ -73,7 +73,13 @@ def draw_cells(ax, color_fn, title):
         ax.text(3.35 * math.cos(th), 3.35 * math.sin(th), lbl, color="#aaa", ha="center", va="center", fontsize=7)
 
 
-fig, axes = plt.subplots(2, 3, figsize=(18, 12.5))
+import patterns  # noqa: E402
+
+# Panel list: layout + clock + every animated pattern from the registry, with defaults.
+names = [n for n in patterns.ORDER if n not in ("off", "clock")]
+cols = 4
+rows = (2 + len(names) + cols - 1) // cols
+fig, axes = plt.subplots(rows, cols, figsize=(6 * cols, 6.3 * rows))
 axes = axes.flatten()
 fig.patch.set_facecolor("#111")
 
@@ -88,40 +94,40 @@ for a in range(0, 60, 5):
     th = math.radians(90 - a * 6)
     ax.text(3.15 * math.cos(th), 3.15 * math.sin(th), str(a), color="#777", ha="center", va="center", fontsize=6)
 for ring in range(6):
-    x, y, _, _ = xy(ring % 2 + 20, ring // 2)  # a cell on the left-right boundary area
     th = math.radians(90 - 20 * 6 + 3)
     d = 1.0 + ring * 0.42
-    ax.text(d * math.cos(th), d * math.sin(th), f"ring {ring}", color="#ddd", ha="center", va="center", fontsize=6,
+    ax.text(d * math.cos(th), d * math.sin(th), "ring %d" % ring, color="#ddd", ha="center", va="center", fontsize=6,
             bbox=dict(facecolor="#000", edgecolor="none", alpha=0.6, pad=1))
 
-# Panel 2: real clock pattern at 10:08:37
-led.led_time((2026, 9, 11, 10, 8, 37, 0, 0))
-snap = {k: STRIPS[k[0]][k[1]] for k in coord_of}
-def clock_color(a, r, name, i):
-    c = snap[(name, i)]
+
+def snapshot_color(a, r, name, i):
+    c = STRIPS[name][i]
     return "#222" if c == (0, 0, 0) else tuple(v / 255 for v in c)
-draw_cells(axes[1], clock_color, "led_time() at 10:08:37\nblue=hour  yellow=minute  red=second")
 
-# Panel 3: real flower pattern
-led.flower(0, (255, 120, 0), (200, 0, 255))
-snap = {k: STRIPS[k[0]][k[1]] for k in coord_of}
-draw_cells(axes[2], clock_color, "flower(idx=0) - 10 petals")
 
-# Panel 4: ripple - one solid hue per visual ring, flowing outward
-led.ripple(0.0)
-snap = {k: STRIPS[k[0]][k[1]] for k in coord_of}
-draw_cells(axes[3], clock_color, "ripple(phase=0) - 6 rings, hue flows outward")
-
-# Panel 5: pinwheel after a few frames so the trails show
+# Panel 2: real clock pattern at 10:08:37
 led.clear()
-pos, hue = 0, 0.0
-for _ in range(4):
-    pos, hue = led.pinwheel(pos, hue)
-snap = {k: STRIPS[k[0]][k[1]] for k in coord_of}
-draw_cells(axes[4], clock_color, "pinwheel() - 3 spiral arms, 1 cell twist per ring")
-axes[5].set_visible(False)
+led.brightness = 1.0
+led.led_time((2026, 9, 11, 10, 8, 37, 0, 0))
+draw_cells(axes[1], snapshot_color, "led_time() at 10:08:37\nblue=hour  yellow=minute  red=second")
+
+# One panel per registered pattern, run for a few frames with default params.
+FRAMES = {"sweep": 40, "radial": 3, "bounce": 30, "simple_bounce": 30, "random": 80}
+for ax, name in zip(axes[2:], names):
+    pat = patterns.get(name)
+    pat.reset()
+    led.clear()
+    led.brightness = pat.values["brightness"]
+    state = pat.init(pat.values)
+    for _ in range(FRAMES.get(name, 6)):
+        state = pat.step(state, pat.values)
+    tunables = ", ".join(k for k in pat.params if k not in ("interval", "brightness")) or "(none)"
+    draw_cells(ax, snapshot_color, "%s\nparams: %s" % (name, tunables))
+
+for ax in axes[2 + len(names):]:
+    ax.set_visible(False)
 
 out = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, "docs", "lotus_layout.png")
 fig.tight_layout()
-fig.savefig(out, dpi=110, facecolor=fig.get_facecolor())
+fig.savefig(out, dpi=100, facecolor=fig.get_facecolor())
 print("wrote", out)

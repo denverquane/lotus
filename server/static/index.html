@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lotus</title>
+<style>
+  :root {
+    --bg: #101114; --panel: #181a1f; --line: #2a2d34; --text: #e6e6e6; --muted: #8a8f98;
+    --accent: #7c5cff; --ok: #3ddc84; --bad: #ff5c5c;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, sans-serif; }
+  header { display: flex; align-items: center; gap: 14px; padding: 12px 20px; border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 18px; margin: 0; letter-spacing: .04em; }
+  .pill { font-size: 12px; padding: 3px 10px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line); color: var(--muted); }
+  .pill.ok { color: var(--ok); border-color: var(--ok); }
+  .pill.bad { color: var(--bad); border-color: var(--bad); }
+  header .spacer { flex: 1; }
+  main { display: grid; grid-template-columns: 260px 1fr; gap: 16px; padding: 16px 20px; max-width: 1100px; }
+  @media (max-width: 720px) { main { grid-template-columns: 1fr; } }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 10px; }
+  .list { display: flex; flex-direction: column; gap: 4px; }
+  .list button { text-align: left; background: transparent; border: 1px solid transparent; color: var(--text);
+    padding: 7px 10px; border-radius: 7px; cursor: pointer; font: inherit; display: flex; align-items: center; gap: 8px; }
+  .list button:hover { background: #20232a; }
+  .list button.active { border-color: var(--accent); background: #20203a; }
+  .list button .sub { color: var(--muted); font-size: 12px; margin-left: auto; }
+  .list button .x { color: var(--muted); font-size: 12px; padding: 0 4px; }
+  .list button .x:hover { color: var(--bad); }
+  .empty { color: var(--muted); font-size: 13px; padding: 6px 10px; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 14px; }
+  .toolbar .grow { flex: 1; }
+  button.primary { background: var(--accent); border: 0; color: white; padding: 8px 14px; border-radius: 7px; cursor: pointer; font: inherit; font-weight: 600; }
+  button.ghost { background: transparent; border: 1px solid var(--line); color: var(--text); padding: 7px 12px; border-radius: 7px; cursor: pointer; font: inherit; }
+  button:disabled { opacity: .5; cursor: default; }
+  label.toggle { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; }
+  .param { display: grid; grid-template-columns: 120px 1fr 70px; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+  .param:first-of-type { border-top: 0; }
+  .param .name { font-family: ui-monospace, monospace; font-size: 13px; }
+  .param .val { font-family: ui-monospace, monospace; font-size: 12px; color: var(--muted); text-align: right; }
+  .param input[type=range] { width: 100%; accent-color: var(--accent); }
+  .param .color { display: flex; gap: 10px; align-items: center; }
+  .param input[type=color] { width: 44px; height: 28px; border: 1px solid var(--line); border-radius: 6px; background: transparent; padding: 0; }
+  .save { display: flex; gap: 8px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+  .save input { flex: 1; background: var(--bg); border: 1px solid var(--line); color: var(--text); padding: 8px 10px; border-radius: 7px; font: inherit; }
+  .preview { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-bottom: 14px; }
+  .preview canvas { width: 100%; max-width: 420px; aspect-ratio: 1; background: #0a0a0c; border-radius: 50%; }
+  .preview .meta { font-size: 12px; color: var(--muted); display: flex; gap: 14px; align-items: center; }
+  #msg { font-size: 12px; color: var(--muted); min-height: 1.4em; margin-top: 8px; }
+  #msg.err { color: var(--bad); }
+</style>
+</head>
+<body>
+<header>
+  <h1>LOTUS</h1>
+  <span id="status" class="pill">connecting…</span>
+  <span class="spacer"></span>
+  <button class="ghost" id="calBtn" title="Cycle every pattern on the wall for a few seconds each and learn its real frame rate, so the preview runs at wall speed">Calibrate</button>
+  <button class="ghost" id="randomBtn" title="Apply a random preset (or a random pattern if none saved)">Random</button>
+  <button class="ghost" id="offBtn">Off</button>
+</header>
+<main>
+  <div style="display:flex;flex-direction:column;gap:16px">
+    <section>
+      <h2>Patterns</h2>
+      <div class="list" id="patterns"></div>
+    </section>
+    <section>
+      <h2>Presets</h2>
+      <div class="list" id="presets"></div>
+    </section>
+  </div>
+  <section>
+    <div class="toolbar">
+      <strong id="editorTitle" style="font-size:16px">—</strong>
+      <span class="grow"></span>
+      <label class="toggle"><input type="checkbox" id="live"> Live link</label>
+      <button class="ghost" id="loadBtn" title="Pull the wall's current values into the editor">Load from wall</button>
+      <button class="ghost" id="resetBtn">Defaults</button>
+      <button class="primary" id="applyBtn">Apply to Lotus</button>
+    </div>
+    <div class="preview">
+      <canvas id="canvas" width="420" height="420"></canvas>
+      <div class="meta">
+        <span id="simInfo">preview starting…</span>
+        <label class="toggle"><input type="checkbox" id="gamma" checked> LED gamma</label>
+      </div>
+    </div>
+    <div id="params"></div>
+    <div class="save">
+      <input id="presetName" placeholder="Preset name" maxlength="64">
+      <button class="primary" id="saveBtn">Save preset</button>
+    </div>
+    <div id="msg"></div>
+  </section>
+</main>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const UNIVERSAL = ["brightness", "interval"];
+  let schema = null;              // {order, patterns: {name: {params: {k: {type, default, min, max, value}}}}}
+  let editor = { pattern: null, params: {}, preset: null };
+  let wall = { pattern: null, reachable: false };
+  let sim = { pattern: null };
+
+  const api = async (method, path, body) => {
+    const r = await fetch(path, { method, headers: body ? { "Content-Type": "application/json" } : {},
+                                  body: body ? JSON.stringify(body) : undefined });
+    let data = {};
+    try { data = await r.json(); } catch (e) {}
+    if (!r.ok) throw new Error(data.error || data.detail || (method + " " + path + " → " + r.status));
+    return data;
+  };
+  const say = (text, err) => { $("msg").textContent = text || ""; $("msg").className = err ? "err" : ""; };
+  const fail = (e) => say(e.message, true);
+
+  // ---- rendering ----
+  const rgbToHex = (c) => "#" + c.map((v) => v.toString(16).padStart(2, "0")).join("");
+  const hexToRgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const fmt = (p, v) => p.type === "float" ? Number(v).toFixed(3).replace(/\.?0+$/, "") : String(v);
+
+  function paramOrder(params) {
+    const keys = Object.keys(params).filter((k) => !UNIVERSAL.includes(k)).sort();
+    return keys.concat(UNIVERSAL.filter((k) => k in params));
+  }
+
+  function renderPatterns() {
+    const el = $("patterns"); el.innerHTML = "";
+    for (const name of schema.order) {
+      const b = document.createElement("button");
+      b.textContent = name;
+      if (name === editor.pattern && !editor.preset) b.classList.add("active");
+      if (name === wall.pattern) b.insertAdjacentHTML("beforeend", '<span class="sub">on wall</span>');
+      b.onclick = () => { selectPattern(name); };
+      el.appendChild(b);
+    }
+  }
+
+  async function renderPresets() {
+    const el = $("presets"); el.innerHTML = "";
+    const { presets } = await api("GET", "/api/presets");
+    if (!presets.length) { el.innerHTML = '<div class="empty">None yet. Tune something and save it.</div>'; return; }
+    for (const p of presets) {
+      const b = document.createElement("button");
+      b.textContent = p.name;
+      if (editor.preset === p.name) b.classList.add("active");
+      b.insertAdjacentHTML("beforeend", '<span class="sub">' + p.pattern + '</span><span class="x" title="Delete">✕</span>');
+      b.onclick = (e) => {
+        if (e.target.classList.contains("x")) { deletePreset(p.name); return; }
+        loadPreset(p);
+      };
+      el.appendChild(b);
+    }
+  }
+
+  function renderEditor() {
+    const el = $("params"); el.innerHTML = "";
+    $("editorTitle").textContent = editor.preset ? editor.preset + "  ·  " + editor.pattern : (editor.pattern || "—");
+    if (!editor.pattern) return;
+    const params = schema.patterns[editor.pattern].params;
+    for (const k of paramOrder(params)) {
+      const p = params[k];
+      const row = document.createElement("div"); row.className = "param";
+      row.innerHTML = '<span class="name">' + k + '</span>';
+      const v = editor.params[k];
+      if (p.type === "int" || p.type === "float") {
+        const step = p.type === "int" ? 1 : ((p.max - p.min) <= 1 ? 0.001 : 0.01);
+        const inp = document.createElement("input");
+        Object.assign(inp, { type: "range", min: p.min, max: p.max, step, value: v });
+        const val = document.createElement("span"); val.className = "val"; val.textContent = fmt(p, v);
+        inp.oninput = () => { const n = p.type === "int" ? parseInt(inp.value) : parseFloat(inp.value);
+                              val.textContent = fmt(p, n); setParam(k, n); };
+        row.appendChild(inp); row.appendChild(val);
+      } else if (p.type === "bool") {
+        const inp = document.createElement("input"); inp.type = "checkbox"; inp.checked = !!v;
+        inp.onchange = () => setParam(k, inp.checked);
+        const wrap = document.createElement("div"); wrap.appendChild(inp);
+        row.appendChild(wrap); row.insertAdjacentHTML("beforeend", '<span class="val"></span>');
+      } else if (p.type === "color") {
+        const wrap = document.createElement("div"); wrap.className = "color";
+        const col = document.createElement("input"); col.type = "color";
+        col.value = v ? rgbToHex(v) : "#ffffff"; col.disabled = v == null;
+        const rnd = document.createElement("label"); rnd.className = "toggle";
+        const chk = document.createElement("input"); chk.type = "checkbox"; chk.checked = v == null;
+        rnd.appendChild(chk); rnd.appendChild(document.createTextNode("random"));
+        chk.onchange = () => { col.disabled = chk.checked; setParam(k, chk.checked ? null : hexToRgb(col.value)); };
+        col.oninput = () => setParam(k, hexToRgb(col.value));
+        wrap.appendChild(col); wrap.appendChild(rnd);
+        row.appendChild(wrap); row.insertAdjacentHTML("beforeend", '<span class="val"></span>');
+      }
+      el.appendChild(row);
+    }
+  }
+
+  // ---- editor state ----
+  function defaultsFor(pattern) {
+    const out = {};
+    for (const [k, p] of Object.entries(schema.patterns[pattern].params)) out[k] = p.default;
+    return out;
+  }
+  function selectPattern(name, params, preset) {
+    editor = { pattern: name, params: params ? { ...defaultsFor(name), ...params } : defaultsFor(name), preset: preset || null };
+    $("presetName").value = preset || "";
+    renderPatterns(); renderPresets(); renderEditor();
+    pushSim().catch(fail);
+    if ($("live").checked) pushFull().catch(fail);
+  }
+  async function pushSim() {
+    const r = await api("POST", "/api/sim/apply", { pattern: editor.pattern, params: editor.params });
+    sim.pattern = r.pattern;
+    return r;
+  }
+  function loadPreset(p) { selectPattern(p.pattern, p.params, p.name); say("Loaded preset " + p.name); }
+
+  // ---- live link: debounce and forward changes to the wall ----
+  let pending = {}, timer = null;
+  function setParam(k, v) {
+    editor.params[k] = v;
+    pending[k] = v;
+    clearTimeout(timer);
+    timer = setTimeout(flush, 100);
+  }
+  async function flush() {
+    const batch = pending; pending = {};
+    try {
+      if (sim.pattern !== editor.pattern) await pushSim();
+      else await api("POST", "/api/sim/tune", batch);
+      if ($("live").checked) {
+        if (wall.pattern !== editor.pattern) await pushFull();
+        else await api("POST", "/api/tune", batch);
+      }
+    } catch (e) { fail(e); }
+  }
+  async function pushFull() {
+    const r = await api("POST", "/api/apply", { pattern: editor.pattern, params: editor.params });
+    wall.pattern = r.pattern; renderPatterns();
+    return r;
+  }
+
+  // ---- buttons ----
+  $("applyBtn").onclick = async () => { try { await pushFull(); say("Applied " + editor.pattern); } catch (e) { fail(e); } };
+  $("resetBtn").onclick = () => { if (editor.pattern) selectPattern(editor.pattern); };
+  $("offBtn").onclick = async () => { try { await api("POST", "/api/apply", { pattern: "off" }); await poll(); } catch (e) { fail(e); } };
+  $("randomBtn").onclick = async () => {
+    try {
+      const r = await api("POST", "/api/random");
+      say(r.preset ? "Preset " + r.preset : "Pattern " + r.pattern);
+      wall.pattern = r.pattern;
+      if (schema.patterns[r.pattern]) selectPattern(r.pattern, r.params, r.preset);
+      await poll();
+    } catch (e) { fail(e); }
+  };
+  $("loadBtn").onclick = async () => {
+    try {
+      const s = await api("GET", "/api/status");
+      if (!s.reachable || !s.pattern || !schema.patterns[s.pattern]) throw new Error("wall is not reachable");
+      selectPattern(s.pattern, s.params, s.preset); say("Loaded current values from the wall");
+    } catch (e) { fail(e); }
+  };
+  $("saveBtn").onclick = async () => {
+    const name = $("presetName").value.trim();
+    if (!name) { say("Give the preset a name", true); return; }
+    try {
+      await api("PUT", "/api/presets/" + encodeURIComponent(name), { pattern: editor.pattern, params: editor.params });
+      editor.preset = name; await renderPresets(); renderPatterns(); renderEditor(); say("Saved " + name);
+    } catch (e) { fail(e); }
+  };
+  async function deletePreset(name) {
+    if (!confirm("Delete preset " + name + "?")) return;
+    try { await api("DELETE", "/api/presets/" + encodeURIComponent(name));
+          if (editor.preset === name) editor.preset = null;
+          await renderPresets(); renderEditor(); say("Deleted " + name); } catch (e) { fail(e); }
+  }
+  $("calBtn").onclick = async () => {
+    try {
+      await api("POST", "/api/calibrate?seconds=3");
+      $("calBtn").disabled = true;
+      const tick = async () => {
+        const c = await api("GET", "/api/calibrate");
+        if (c.running) { say("Calibrating " + c.pattern + " (" + c.done + "/" + c.total + ")…"); setTimeout(tick, 1000); }
+        else { $("calBtn").disabled = false; say(c.error ? "Calibration stopped: " + c.error : "Calibrated " + Object.keys(c.results).length + " patterns; preview now runs at wall speed"); await poll(); }
+      };
+      tick();
+    } catch (e) { $("calBtn").disabled = false; fail(e); }
+  };
+  $("live").onchange = () => { if ($("live").checked && editor.pattern) pushFull().catch(fail); };
+
+  // ---- simulator preview (real firmware frames over SSE) ----
+  const canvas = $("canvas"), ctx = canvas.getContext("2d");
+  let cells = null, paths = null, lastFrame = null;
+  const GAMMA = 1 / 2.2;
+  const lut = new Uint8Array(256);
+  for (let i = 0; i < 256; i++) lut[i] = Math.round(255 * Math.pow(i / 255, GAMMA));
+
+  function buildPaths() {
+    const W = canvas.width, c = W / 2, scale = (W / 2) / 3.45;
+    paths = cells.map((cell) => {
+      const size = (0.10 + cell.ring * 0.022) * scale * 1.55;
+      const x = c + cell.x * scale, y = c + cell.y * scale;
+      const rot = -Math.atan2(cell.y, cell.x);
+      const p = new Path2D();
+      for (let k = 0; k < 6; k++) {
+        const a = rot + k * Math.PI / 3;
+        const px = x + size * Math.cos(a), py = y + size * Math.sin(a);
+        k ? p.lineTo(px, py) : p.moveTo(px, py);
+      }
+      p.closePath();
+      return p;
+    });
+  }
+  function paint(frame) {
+    if (!paths) return;
+    lastFrame = frame;
+    const g = $("gamma").checked;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (let i = 0; i < 180; i++) {
+      let r = parseInt(frame.substr(i * 6, 2), 16), gg = parseInt(frame.substr(i * 6 + 2, 2), 16), b = parseInt(frame.substr(i * 6 + 4, 2), 16);
+      if (g) { r = lut[r]; gg = lut[gg]; b = lut[b]; }
+      ctx.fillStyle = (r | gg | b) ? "rgb(" + r + "," + gg + "," + b + ")" : "#1b1c20";
+      ctx.fill(paths[i]);
+    }
+  }
+  $("gamma").onchange = () => { if (lastFrame) paint(lastFrame); };
+
+  async function startPreview() {
+    const layout = await api("GET", "/api/sim/layout");
+    cells = layout.cells;
+    buildPaths();
+    const es = new EventSource("/api/sim/frames");
+    es.onmessage = (ev) => {
+      const d = JSON.parse(ev.data);
+      sim.pattern = d.p;
+      paint(d.f);
+      let info = "preview: " + d.p + (d.fps ? " · " + d.fps + " fps" : "");
+      info += d.wall_ms != null ? " · paced to wall (" + d.wall_ms.toFixed(1) + " ms/frame)" : " · wall timing unknown, press Calibrate";
+      if (wall.timing && wall.timing.fps && wall.pattern === d.p) info += " · wall " + wall.timing.fps + " fps";
+      $("simInfo").textContent = info + (d.err ? " · ERROR " + d.err : "");
+    };
+    es.onerror = () => { $("simInfo").textContent = "preview stream reconnecting…"; };
+  }
+
+  // ---- status polling ----
+  async function poll() {
+    try {
+      const s = await api("GET", "/api/status");
+      wall = { pattern: s.pattern, reachable: !!s.reachable, timing: s.timing || null };
+      const pill = $("status");
+      pill.className = "pill " + (s.reachable ? "ok" : "bad");
+      pill.textContent = s.reachable ? "wall: " + s.pattern + (s.preset ? " (" + s.preset + ")" : "") : "wall unreachable";
+      renderPatterns();
+    } catch (e) { $("status").className = "pill bad"; $("status").textContent = "server error"; }
+  }
+
+  (async () => {
+    try {
+      schema = await api("GET", "/api/patterns");
+      if (schema.source === "local") say("Wall unreachable; using bundled pattern list", true);
+      await poll();
+      const start = wall.pattern && schema.patterns[wall.pattern] ? wall.pattern : schema.order.find((n) => n !== "off");
+      selectPattern(start);
+      setInterval(poll, 5000);
+      startPreview().catch(fail);
+    } catch (e) { fail(e); }
+  })();
+})();
+</script>
+</body>
+</html>

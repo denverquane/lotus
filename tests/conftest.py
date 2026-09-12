@@ -5,10 +5,12 @@ import led
 
 @pytest.fixture(autouse=True)
 def reset_strips():
-    """Every test starts with all three strips black."""
+    """Every test starts with all three strips black at full brightness."""
     led.clear()
+    led.brightness = 1.0
     yield
     led.clear()
+    led.brightness = 1.0
 
 
 def lit_pixels():
