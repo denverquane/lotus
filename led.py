@@ -70,6 +70,44 @@ def set_led(angle, radius, color):
     elif region == TOP:
         top[59-value] = color
         
+# --- Visual coordinates -------------------------------------------------
+# The 60 columns are staggered: even angles sit one ring further in than odd
+# angles. So (angle, radius) is the *wiring* coordinate, and what the eye sees
+# is 6 concentric rings of 30 cells. These helpers work in that visual space.
+NUM_RINGS = 6
+CELLS_PER_RING = 30
+
+def ring_of(angle, radius):
+    """Visual ring (0 = innermost) for a wiring coordinate."""
+    return 2 * radius + (angle % 2)
+
+def set_cell(ring, i, color):
+    """Light cell i (0-29, clockwise from 12 o'clock) on visual ring (0-5)."""
+    set_led(2 * i + (ring % 2), ring // 2, color)
+
+def hsv_to_rgb(h, s, v):
+    """h, s, v in 0..1 (h wraps) -> (r, g, b) ints in 0..255."""
+    h = h % 1.0
+    i = int(h * 6)
+    f = h * 6 - i
+    p = v * (1 - s)
+    q = v * (1 - s * f)
+    t = v * (1 - s * (1 - f))
+    i %= 6
+    if i == 0:
+        r, g, b = v, t, p
+    elif i == 1:
+        r, g, b = q, v, p
+    elif i == 2:
+        r, g, b = p, v, t
+    elif i == 3:
+        r, g, b = p, q, v
+    elif i == 4:
+        r, g, b = t, p, v
+    else:
+        r, g, b = v, p, q
+    return (int(r * 255), int(g * 255), int(b * 255))
+
 def random_color():
     return (random.randint(0,255), random.randint(0,255), random.randint(0,255))
     
@@ -227,6 +265,36 @@ def flower(idx, color, i_color):
     write()
     
     return (idx + 2) % 60
-    
-    
-    
+
+
+def ripple(phase, spread=0.5, brightness=0.5):
+    """Rainbow flowing outward ring by ring.
+
+    Each visual ring is one solid hue; hue advances with phase so colors
+    travel from the center outward. `spread` is how much of the hue wheel
+    is visible across the 6 rings at once. Returns the next phase.
+    """
+    for ring in range(NUM_RINGS):
+        color = hsv_to_rgb(phase - ring * spread / NUM_RINGS, 1.0, brightness)
+        for i in range(CELLS_PER_RING):
+            set_cell(ring, i, color)
+    write()
+    return (phase + 0.01) % 1.0
+
+
+def pinwheel(pos, hue, arms=3, twist=1, fade=40, brightness=0.5):
+    """Spinning spiral arms.
+
+    Each arm is one cell per ring, shifted `twist` cells further around on
+    each ring outward, so it curves. Arms are evenly spaced and each has its
+    own hue; the whole thing slowly cycles through the hue wheel. fade_all
+    leaves a short trail behind each arm. Returns (next pos, next hue).
+    """
+    fade_all(fade)
+    for arm in range(arms):
+        color = hsv_to_rgb(hue + arm / arms, 1.0, brightness)
+        base = pos + (arm * CELLS_PER_RING) // arms
+        for ring in range(NUM_RINGS):
+            set_cell(ring, (base + ring * twist) % CELLS_PER_RING, color)
+    write()
+    return (pos + 1) % CELLS_PER_RING, (hue + 0.002) % 1.0

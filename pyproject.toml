@@ -1,0 +1,16 @@
+[project]
+name = "lotus"
+version = "0.1.0"
+description = "MicroPython firmware for the Lotus LED wall art (Raspberry Pi Pico W)"
+requires-python = ">=3.12"
+dependencies = []
+
+[dependency-groups]
+dev = ["pytest>=8"]
+render = ["matplotlib>=3.8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# `stubs` shadows the MicroPython-only modules (machine, neopixel, network, uasyncio, ujson)
+# so led.py and main.py import cleanly on desktop Python.
+pythonpath = ["stubs", "."]

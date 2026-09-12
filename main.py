@@ -18,7 +18,9 @@ RADIAL = 4
 BOUNCE = 5
 SIMPLE_BOUNCE = 6
 FLOWER = 7
-MAX_MODE = FLOWER
+RIPPLE = 8
+PINWHEEL = 9
+MAX_MODE = PINWHEEL
 MODE = WIFI
 
 ANY_STR = "any"
@@ -32,6 +34,8 @@ PATTERN_STRS = [
     "bounce",
     "simple_bounce",
     "flower",
+    "ripple",
+    "pinwheel",
     ]
 
 
@@ -51,6 +55,10 @@ async def auto_reconnect_network(ssid, password):
         else:
             if MODE == WIFI:
                 MODE = OFF
+                try:
+                    set_time()
+                except Exception as e:
+                    print('NTP sync failed:', e)
             status = wlan.ifconfig()
             print('ip = ' + status[0])
             await asyncio.sleep(60)
@@ -75,6 +83,18 @@ def set_time():
     t = val - NTP_DELTA    
     tm = time.gmtime(t)
     machine.RTC().datetime((tm[0], tm[1], tm[2], tm[6] + 1, tm[3], tm[4], tm[5], 0))
+
+def parse_query_string(query_string):
+    query = {}
+    for pair in query_string.split('&'):
+        if not pair:
+            continue
+        if '=' in pair:
+            key, value = pair.split('=', 1)
+        else:
+            key, value = pair, ''
+        query[key] = value
+    return query
 
 def parse_http_request(req_buffer):
     req = {}
@@ -111,12 +131,17 @@ async def respond_and_close(writer, code, data = ""):
     await writer.drain()
     await writer.wait_closed()
     
+def current_pattern():
+    if MODE == WIFI:
+        return "connecting"
+    return PATTERN_STRS[MODE]
+
 def match_pattern(pattern):
     global MODE
     # prioritize the off command
     if pattern == PATTERN_STRS[OFF]:
         MODE = OFF
-        return TRUE
+        return True
     elif pattern == ANY_STR:
         r = random.randint(RANDOM, MAX_MODE)
         while r == MODE:
@@ -146,7 +171,7 @@ def serve_client(lock):
             return
     
         if req['method'] == 'GET':
-            await respond_and_close(writer, b"200 OK", b'{"pattern": "' + PATTERN_STRS[MODE] + b'"}')
+            await respond_and_close(writer, b"200 OK", b'{"pattern": "' + current_pattern().encode() + b'"}')
             return
         
         if req['method'] != 'POST':
@@ -266,9 +291,22 @@ async def main():
             idx = led.flower(idx, color, i_color)
             await asyncio.sleep(0.2)
             prevMode = FLOWER
+        elif MODE == RIPPLE:
+            if prevMode != MODE:
+                phase = 0.0
+            phase = led.ripple(phase)
+            await asyncio.sleep(0.05)
+            prevMode = RIPPLE
+        elif MODE == PINWHEEL:
+            if prevMode != MODE:
+                pos, hue = 0, random.random()
+            pos, hue = led.pinwheel(pos, hue)
+            await asyncio.sleep(0.08)
+            prevMode = PINWHEEL
 
 
-try:
-    asyncio.run(main())
-finally:
-    asyncio.new_event_loop()
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    finally:
+        asyncio.new_event_loop()
